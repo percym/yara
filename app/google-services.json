@@ -12,7 +12,20 @@
           "package_name": "dev.percym.yara"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "213477960487-h2mv2b3a88urfkh0rtbdnnqsfj1sa822.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "dev.percym.yara",
+            "certificate_hash": "4fff08e17e09a080d0b1ab8c03efc56fa6528cb2"
+          }
+        },
+        {
+          "client_id": "213477960487-gcie8c74an65mavg69rhl9885m5hhent.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyD7hBnel9DX9b5V3vmhnHYGiYEt8CNZoT4"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "213477960487-gcie8c74an65mavg69rhl9885m5hhent.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

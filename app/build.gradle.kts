@@ -11,16 +11,12 @@ rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use 
 
 android {
     namespace = "dev.percym.yara"
-    compileSdk {
-        version = release(37) {
-            minorApiLevel = 0
-        }
-    }
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "dev.percym.yara"
         minSdk = 26
-        targetSdk = 37
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
@@ -57,6 +53,8 @@ android {
 
 configurations.all {
     resolutionStrategy {
+        force("androidx.core:core:1.15.0")
+        force("androidx.core:core-ktx:1.15.0")
         force("androidx.vectordrawable:vectordrawable:1.2.0")
         force("androidx.vectordrawable:vectordrawable-animated:1.2.0")
     }
@@ -75,7 +73,7 @@ dependencies {
     implementation(libs.lifecycle.viewmodel.compose)
 
     // Firebase
-    implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
+    implementation(platform(libs.firebase.bom))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
 
