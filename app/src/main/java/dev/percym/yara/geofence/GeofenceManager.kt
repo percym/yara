@@ -17,6 +17,8 @@ import com.google.android.libraries.places.api.Places
 import com.google.android.libraries.places.api.model.CircularBounds
 import com.google.android.libraries.places.api.model.Place
 import com.google.android.libraries.places.api.net.SearchNearbyRequest
+import android.location.Location
+import dev.percym.yara.data.NearbyShop
 import dev.percym.yara.data.StoreCategory
 import kotlinx.coroutines.tasks.await
 import org.json.JSONArray
@@ -78,6 +80,46 @@ class GeofenceManager(private val context: Context) {
         } catch (e: Exception) {
             Log.e("GeofenceManager", "Failed to set geofences for ${category.name}", e)
         }
+    }
+
+    suspend fun searchNearbyShops(
+        userLat: Double,
+        userLng: Double,
+        categories: List<StoreCategory> = StoreCategory.entries
+    ): List<NearbyShop> {
+        val placesClient = Places.createClient(context)
+        val results = mutableListOf<NearbyShop>()
+        val distOut = FloatArray(1)
+
+        for (category in categories) {
+            try {
+                val request = SearchNearbyRequest.builder(
+                    CircularBounds.newInstance(LatLng(userLat, userLng), 3000.0),
+                    listOf(Place.Field.ID, Place.Field.LOCATION, Place.Field.DISPLAY_NAME, Place.Field.FORMATTED_ADDRESS)
+                )
+                    .setIncludedTypes(listOf(category.placeType))
+                    .setMaxResultCount(5)
+                    .build()
+
+                val response = placesClient.searchNearby(request).await()
+                response.places.mapNotNullTo(results) { place ->
+                    val latlng = place.location ?: return@mapNotNullTo null
+                    val placeId = place.id ?: return@mapNotNullTo null
+                    Location.distanceBetween(userLat, userLng, latlng.latitude, latlng.longitude, distOut)
+                    NearbyShop(
+                        id = placeId,
+                        name = place.displayName ?: "Unknown",
+                        address = place.formattedAddress ?: "",
+                        category = category,
+                        distanceMeters = distOut[0]
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e("GeofenceManager", "Nearby search failed for ${category.name}", e)
+            }
+        }
+
+        return results.sortedBy { it.distanceMeters }
     }
 
     fun getProductsForGeofenceId(geofenceId: String): List<String> {

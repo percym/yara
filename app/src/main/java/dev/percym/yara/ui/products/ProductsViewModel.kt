@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
+import dev.percym.yara.data.NearbyShop
 import dev.percym.yara.data.Product
 import dev.percym.yara.data.ProductRepository
 import dev.percym.yara.data.StoreCategory
@@ -32,9 +33,22 @@ class ProductsViewModel(application: Application) : AndroidViewModel(application
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    private val _nearbyShops = MutableStateFlow<List<NearbyShop>>(emptyList())
+    val nearbyShops: StateFlow<List<NearbyShop>> = _nearbyShops.asStateFlow()
+
+    private val _isLoadingShops = MutableStateFlow(false)
+    val isLoadingShops: StateFlow<Boolean> = _isLoadingShops.asStateFlow()
+
     init {
         viewModelScope.launch {
-            repository.observeProducts().collect { _products.value = it }
+            var firstLoad = true
+            repository.observeProducts().collect { products ->
+                _products.value = products
+                if (firstLoad && products.isNotEmpty()) {
+                    firstLoad = false
+                    refreshAllGeofences(products)
+                }
+            }
         }
     }
 
@@ -64,6 +78,56 @@ class ProductsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun clearError() { _error.value = null }
+
+    @SuppressLint("MissingPermission")
+    fun loadNearbyShops() {
+        viewModelScope.launch {
+            _isLoadingShops.value = true
+            _nearbyShops.value = emptyList()
+            _error.value = null
+            try {
+                val cts = CancellationTokenSource()
+                val location = fusedLocation.getCurrentLocation(
+                    Priority.PRIORITY_BALANCED_POWER_ACCURACY, cts.token
+                ).await()
+                if (location == null) {
+                    _error.value = "Could not get location — ensure Location permission is granted"
+                    return@launch
+                }
+                _nearbyShops.value = geofenceManager.searchNearbyShops(
+                    location.latitude, location.longitude
+                )
+                if (_nearbyShops.value.isEmpty()) {
+                    _error.value = "No shops found — check that Places API (New) is enabled and billing is active in Google Cloud Console"
+                }
+            } catch (e: Exception) {
+                _error.value = "Search failed: ${e.message}"
+            } finally {
+                _isLoadingShops.value = false
+            }
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private suspend fun refreshAllGeofences(products: List<Product>) {
+        try {
+            val cts = CancellationTokenSource()
+            val location = fusedLocation.getCurrentLocation(
+                Priority.PRIORITY_BALANCED_POWER_ACCURACY, cts.token
+            ).await() ?: return
+
+            val categoriesInUse = products
+                .mapNotNull { runCatching { StoreCategory.valueOf(it.category) }.getOrNull() }
+                .distinct()
+
+            for (category in categoriesInUse) {
+                val names = products.filter { it.category == category.name }.map { it.name }
+                geofenceManager.refreshForCategory(category, names, location.latitude, location.longitude)
+            }
+        } catch (_: SecurityException) {
+        } catch (_: Exception) {
+        }
+    }
 
     @SuppressLint("MissingPermission")
     private suspend fun refreshGeofences(category: StoreCategory) {

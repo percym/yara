@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -33,6 +35,7 @@ import dev.percym.yara.data.StoreCategory
 import dev.percym.yara.ui.theme.*
 
 @Composable
+@Preview
 fun ProductsScreen(
     viewModel: ProductsViewModel = viewModel(),
     onSignOut: () -> Unit
@@ -40,6 +43,7 @@ fun ProductsScreen(
     val products by viewModel.products.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     var showAddSheet by remember { mutableStateOf(false) }
+    var showNearbySheet by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -66,35 +70,41 @@ fun ProductsScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(
-                        text = "My Shopping",
-                        style = MaterialTheme.typography.headlineLarge.copy(
-                            color = TextPrimary,
-                            fontWeight = FontWeight.ExtraBold
-                        )
+                Text(
+                    text = "My Shopping List",
+                    style = MaterialTheme.typography.headlineLarge.copy(
+                        color = TextPrimary,
+                        fontWeight = FontWeight.ExtraBold
                     )
-                    Text(
-                        text = "List",
-                        style = MaterialTheme.typography.headlineLarge.copy(
-                            color = TextPrimary,
-                            fontWeight = FontWeight.ExtraBold
-                        )
-                    )
-                }
+                )
 
-                IconButton(
-                    onClick = onSignOut,
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(PurpleCard)
-                ) {
-                    Icon(
-                        Icons.Default.ExitToApp,
-                        contentDescription = "Sign out",
-                        tint = TextSubtle
-                    )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    IconButton(
+                        onClick = { showNearbySheet = true },
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(GoldPrimary.copy(alpha = 0.15f))
+                    ) {
+                        Icon(
+                            Icons.Default.Place,
+                            contentDescription = "Nearby shops",
+                            tint = GoldPrimary
+                        )
+                    }
+                    IconButton(
+                        onClick = onSignOut,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(PurpleCard)
+                    ) {
+                        Icon(
+                            Icons.Default.ExitToApp,
+                            contentDescription = "Sign out",
+                            tint = TextSubtle
+                        )
+                    }
                 }
             }
 
@@ -168,6 +178,10 @@ fun ProductsScreen(
                 color = GoldPrimary
             )
         }
+    }
+
+    if (showNearbySheet) {
+        NearbyShopsSheet(onDismiss = { showNearbySheet = false })
     }
 
     if (showAddSheet) {
