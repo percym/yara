@@ -122,6 +122,15 @@ class GeofenceManager(private val context: Context) {
         return results.sortedBy { it.distanceMeters }
     }
 
+    suspend fun refreshGeofencesFromCache(userLat: Double, userLng: Double) {
+        val mapping = readProductMapping()
+        for ((categoryName, products) in mapping) {
+            if (products.isEmpty()) continue
+            val category = runCatching { StoreCategory.valueOf(categoryName) }.getOrNull() ?: continue
+            refreshForCategory(category, products, userLat, userLng)
+        }
+    }
+
     fun getProductsForGeofenceId(geofenceId: String): List<String> {
         val categoryName = geofenceId.substringBefore("__")
         return readProductMapping()[categoryName] ?: emptyList()

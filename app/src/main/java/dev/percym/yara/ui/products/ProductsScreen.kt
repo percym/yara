@@ -1,5 +1,10 @@
 package dev.percym.yara.ui.products
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -23,11 +28,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.percym.yara.data.Product
@@ -35,15 +41,89 @@ import dev.percym.yara.data.StoreCategory
 import dev.percym.yara.ui.theme.*
 
 @Composable
-@Preview
 fun ProductsScreen(
     viewModel: ProductsViewModel = viewModel(),
     onSignOut: () -> Unit
 ) {
+    val context = LocalContext.current
     val products by viewModel.products.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     var showAddSheet by remember { mutableStateOf(false) }
     var showNearbySheet by remember { mutableStateOf(false) }
+    var showBgLocationRationale by remember { mutableStateOf(false) }
+
+    fun hasPermission(p: String) =
+        ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
+
+    val bgLocationGranted = remember {
+        mutableStateOf(
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+                hasPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        )
+    }
+
+    val bgLocationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> bgLocationGranted.value = granted }
+
+    val basicPermissionsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        val fineGranted = results[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        if (fineGranted && !bgLocationGranted.value && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            showBgLocationRationale = true
+        }
+    }
+
+    // Request on launch
+    LaunchedEffect(Unit) {
+        val toRequest = buildList {
+            if (!hasPermission(Manifest.permission.ACCESS_FINE_LOCATION))
+                add(Manifest.permission.ACCESS_FINE_LOCATION)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                !hasPermission(Manifest.permission.POST_NOTIFICATIONS))
+                add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        if (toRequest.isNotEmpty()) {
+            basicPermissionsLauncher.launch(toRequest.toTypedArray())
+        } else if (!bgLocationGranted.value && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            showBgLocationRationale = true
+        }
+    }
+
+    // Background location rationale dialog
+    if (showBgLocationRationale) {
+        AlertDialog(
+            onDismissRequest = { showBgLocationRationale = false },
+            containerColor = PurpleCard,
+            title = {
+                Text("Background location", color = TextPrimary, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(
+                    "To vibrate when you walk near a shop — even with the app closed — " +
+                        "YaRA needs \"Allow all the time\" location access.",
+                    color = TextSubtle
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showBgLocationRationale = false
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            bgLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = PurpleDark)
+                ) { Text("Allow") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBgLocationRationale = false }) {
+                    Text("Later", color = TextMuted)
+                }
+            }
+        )
+    }
 
     Box(
         modifier = Modifier
@@ -159,7 +239,16 @@ fun ProductsScreen(
 
         // Gold FAB
         FloatingActionButton(
-            onClick = { showAddSheet = true },
+            onClick = {
+                if (!hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)) {
+                    basicPermissionsLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION))
+                } else {
+                    if (!bgLocationGranted.value && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        showBgLocationRationale = true
+                    }
+                    showAddSheet = true
+                }
+            },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .navigationBarsPadding()
