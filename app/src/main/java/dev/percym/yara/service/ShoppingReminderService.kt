@@ -20,6 +20,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
@@ -42,16 +43,24 @@ class ShoppingReminderService : Service() {
 
     @SuppressLint("MissingPermission")
     private suspend fun reRegisterGeofences() {
-        try {
-            val cts = CancellationTokenSource()
-            val location = LocationServices.getFusedLocationProviderClient(this)
-                .getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, cts.token)
-                .await() ?: return
-            GeofenceManager(this).refreshGeofencesFromCache(location.latitude, location.longitude)
-            Log.d(TAG, "Geofences re-registered from service")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to re-register geofences", e)
+        val retryDelaysMs = listOf(0L, 30_000L, 60_000L) // immediate, 30s, 60s
+        for ((attempt, delayMs) in retryDelaysMs.withIndex()) {
+            if (delayMs > 0) delay(delayMs)
+            try {
+                val cts = CancellationTokenSource()
+                val location = LocationServices.getFusedLocationProviderClient(this)
+                    .getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, cts.token)
+                    .await()
+                if (location != null) {
+                    GeofenceManager(this).refreshGeofencesFromCache(location.latitude, location.longitude)
+                    Log.d(TAG, "Geofences re-registered (attempt ${attempt + 1})")
+                    return
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Attempt ${attempt + 1} failed: ${e.message}")
+            }
         }
+        Log.e(TAG, "Failed to re-register geofences after all retries")
     }
 
     private fun buildNotification(): Notification {

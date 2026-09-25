@@ -71,7 +71,7 @@ class GeofenceManager(private val context: Context) {
 
             if (geofences.isNotEmpty()) {
                 val geofencingRequest = GeofencingRequest.Builder()
-                    .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
+                    .setInitialTrigger(0) // only trigger on actual entry, not on registration
                     .addGeofences(geofences)
                     .build()
                 geofencingClient.addGeofences(geofencingRequest, pendingIntent).await()
