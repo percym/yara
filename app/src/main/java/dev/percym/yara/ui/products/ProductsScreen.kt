@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -159,6 +160,19 @@ fun ProductsScreen(
                 )
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    IconButton(
+                        onClick = { viewModel.syncGeofences() },
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(PurpleCard)
+                    ) {
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = "Sync reminders",
+                            tint = TextSubtle
+                        )
+                    }
                     IconButton(
                         onClick = { showNearbySheet = true },
                         modifier = Modifier

@@ -24,11 +24,21 @@ import kotlinx.coroutines.tasks.await
 import org.json.JSONArray
 import org.json.JSONObject
 
+data class CachedShop(
+    val id: String,
+    val name: String,
+    val lat: Double,
+    val lng: Double,
+    val categoryName: String
+)
+
 class GeofenceManager(private val context: Context) {
 
     private val geofencingClient = LocationServices.getGeofencingClient(context)
     private val prefs: SharedPreferences =
         context.getSharedPreferences("yara_geofences", Context.MODE_PRIVATE)
+    private val shopPrefs: SharedPreferences =
+        context.getSharedPreferences("yara_shop_locations", Context.MODE_PRIVATE)
 
     private val pendingIntent: PendingIntent by lazy {
         val intent = Intent(context, GeofenceBroadcastReceiver::class.java)
@@ -51,19 +61,21 @@ class GeofenceManager(private val context: Context) {
 
         val placesClient = Places.createClient(context)
         val request = SearchNearbyRequest.builder(
-            CircularBounds.newInstance(LatLng(userLat, userLng), 5000.0),
-            listOf(Place.Field.ID, Place.Field.LOCATION)
+            CircularBounds.newInstance(LatLng(userLat, userLng), 10000.0),
+            listOf(Place.Field.ID, Place.Field.LOCATION, Place.Field.DISPLAY_NAME)
         )
             .setIncludedTypes(listOf(category.placeType))
             .build()
 
         try {
             val response = placesClient.searchNearby(request).await()
+            saveShopLocations(category, response.places)
+
             val geofences = response.places.mapNotNull { place ->
                 val latlng = place.location ?: return@mapNotNull null
                 Geofence.Builder()
                     .setRequestId("${category.name}__${place.id}")
-                    .setCircularRegion(latlng.latitude, latlng.longitude, 150f)
+                    .setCircularRegion(latlng.latitude, latlng.longitude, 250f)
                     .setExpirationDuration(Geofence.NEVER_EXPIRE)
                     .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER)
                     .build()
@@ -71,7 +83,7 @@ class GeofenceManager(private val context: Context) {
 
             if (geofences.isNotEmpty()) {
                 val geofencingRequest = GeofencingRequest.Builder()
-                    .setInitialTrigger(0) // only trigger on actual entry, not on registration
+                    .setInitialTrigger(0)
                     .addGeofences(geofences)
                     .build()
                 geofencingClient.addGeofences(geofencingRequest, pendingIntent).await()
@@ -102,6 +114,8 @@ class GeofenceManager(private val context: Context) {
                     .build()
 
                 val response = placesClient.searchNearby(request).await()
+                saveShopLocations(category, response.places)
+
                 response.places.mapNotNullTo(results) { place ->
                     val latlng = place.location ?: return@mapNotNullTo null
                     val placeId = place.id ?: return@mapNotNullTo null
@@ -111,7 +125,9 @@ class GeofenceManager(private val context: Context) {
                         name = place.displayName ?: "Unknown",
                         address = place.formattedAddress ?: "",
                         category = category,
-                        distanceMeters = distOut[0]
+                        distanceMeters = distOut[0],
+                        lat = latlng.latitude,
+                        lng = latlng.longitude
                     )
                 }
             } catch (e: Exception) {
@@ -134,6 +150,47 @@ class GeofenceManager(private val context: Context) {
     fun getProductsForGeofenceId(geofenceId: String): List<String> {
         val categoryName = geofenceId.substringBefore("__")
         return readProductMapping()[categoryName] ?: emptyList()
+    }
+
+    fun getProductsForCategory(categoryName: String): List<String> =
+        readProductMapping()[categoryName] ?: emptyList()
+
+    fun getShopsWithTrackedProducts(): List<CachedShop> {
+        val productMap = readProductMapping()
+        return productMap.entries
+            .filter { it.value.isNotEmpty() }
+            .flatMap { (categoryName, _) ->
+                val raw = shopPrefs.getString(categoryName, null) ?: return@flatMap emptyList()
+                runCatching {
+                    val arr = JSONArray(raw)
+                    (0 until arr.length()).mapNotNull { i ->
+                        val obj = arr.getJSONObject(i)
+                        val name = obj.optString("name").ifEmpty { return@mapNotNull null }
+                        CachedShop(
+                            id = obj.getString("id"),
+                            name = name,
+                            lat = obj.getDouble("lat"),
+                            lng = obj.getDouble("lng"),
+                            categoryName = categoryName
+                        )
+                    }
+                }.getOrElse { emptyList() }
+            }
+    }
+
+    private fun saveShopLocations(category: StoreCategory, places: List<Place>) {
+        val arr = JSONArray()
+        places.forEach { place ->
+            val latlng = place.location ?: return@forEach
+            val id = place.id ?: return@forEach
+            arr.put(JSONObject().apply {
+                put("id", id)
+                put("name", place.displayName ?: "")
+                put("lat", latlng.latitude)
+                put("lng", latlng.longitude)
+            })
+        }
+        shopPrefs.edit().putString(category.name, arr.toString()).apply()
     }
 
     private fun saveProductMapping(category: StoreCategory, products: List<String>) {

@@ -88,7 +88,7 @@ class ProductsViewModel(application: Application) : AndroidViewModel(application
             try {
                 val cts = CancellationTokenSource()
                 val location = fusedLocation.getCurrentLocation(
-                    Priority.PRIORITY_BALANCED_POWER_ACCURACY, cts.token
+                    Priority.PRIORITY_HIGH_ACCURACY, cts.token
                 ).await()
                 if (location == null) {
                     _error.value = "Could not get location — ensure Location permission is granted"
@@ -99,6 +99,10 @@ class ProductsViewModel(application: Application) : AndroidViewModel(application
                 )
                 if (_nearbyShops.value.isEmpty()) {
                     _error.value = "No shops found — check that Places API (New) is enabled and billing is active in Google Cloud Console"
+                } else {
+                    // User is here now — register geofences from this location so
+                    // they fire when the user comes back later
+                    refreshAllGeofences(_products.value, location.latitude, location.longitude)
                 }
             } catch (e: Exception) {
                 _error.value = "Search failed: ${e.message}"
@@ -109,12 +113,29 @@ class ProductsViewModel(application: Application) : AndroidViewModel(application
     }
 
     @SuppressLint("MissingPermission")
-    private suspend fun refreshAllGeofences(products: List<Product>) {
+    fun syncGeofences() {
+        viewModelScope.launch {
+            refreshAllGeofences(_products.value)
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private suspend fun refreshAllGeofences(products: List<Product>, lat: Double? = null, lng: Double? = null) {
+        if (products.isEmpty()) return
         try {
-            val cts = CancellationTokenSource()
-            val location = fusedLocation.getCurrentLocation(
-                Priority.PRIORITY_BALANCED_POWER_ACCURACY, cts.token
-            ).await() ?: return
+            val resolvedLat: Double
+            val resolvedLng: Double
+            if (lat != null && lng != null) {
+                resolvedLat = lat
+                resolvedLng = lng
+            } else {
+                val cts = CancellationTokenSource()
+                val loc = fusedLocation.getCurrentLocation(
+                    Priority.PRIORITY_BALANCED_POWER_ACCURACY, cts.token
+                ).await() ?: return
+                resolvedLat = loc.latitude
+                resolvedLng = loc.longitude
+            }
 
             val categoriesInUse = products
                 .mapNotNull { runCatching { StoreCategory.valueOf(it.category) }.getOrNull() }
@@ -122,7 +143,7 @@ class ProductsViewModel(application: Application) : AndroidViewModel(application
 
             for (category in categoriesInUse) {
                 val names = products.filter { it.category == category.name }.map { it.name }
-                geofenceManager.refreshForCategory(category, names, location.latitude, location.longitude)
+                geofenceManager.refreshForCategory(category, names, resolvedLat, resolvedLng)
             }
         } catch (_: SecurityException) {
         } catch (_: Exception) {

@@ -1,16 +1,22 @@
 package dev.percym.yara.ui.products
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -124,12 +130,14 @@ fun NearbyShopsSheet(
 
 @Composable
 private fun ShopRow(shop: NearbyShop) {
+    val context = LocalContext.current
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(PurpleMid)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(start = 14.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -172,6 +180,27 @@ private fun ShopRow(shop: NearbyShop) {
                 fontWeight = FontWeight.SemiBold
             )
         )
+
+        IconButton(onClick = { openInMap(context, shop) }) {
+            Icon(
+                Icons.Default.Place,
+                contentDescription = "Open in map",
+                tint = GoldPrimary,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+private fun openInMap(context: android.content.Context, shop: NearbyShop) {
+    val label = Uri.encode(shop.name)
+    val geoUri = Uri.parse("geo:${shop.lat},${shop.lng}?q=${shop.lat},${shop.lng}($label)")
+    try {
+        context.startActivity(Intent(Intent.ACTION_VIEW, geoUri))
+    } catch (_: ActivityNotFoundException) {
+        // No map app — fall back to browser
+        val webUri = Uri.parse("https://www.google.com/maps/search/?api=1&query=${shop.lat},${shop.lng}")
+        context.startActivity(Intent(Intent.ACTION_VIEW, webUri))
     }
 }
 
