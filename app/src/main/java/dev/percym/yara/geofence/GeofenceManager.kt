@@ -136,7 +136,7 @@ class GeofenceManager(private val context: Context) {
             }
         }
 
-        return results.sortedBy { it.distanceMeters }
+        return results.distinctBy { it.id }.sortedBy { it.distanceMeters }
     }
 
     suspend fun refreshGeofencesFromCache(userLat: Double, userLng: Double) {
