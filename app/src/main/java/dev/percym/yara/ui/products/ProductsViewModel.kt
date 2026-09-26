@@ -2,6 +2,7 @@ package dev.percym.yara.ui.products
 
 import android.annotation.SuppressLint
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.android.gms.location.LocationServices
@@ -58,7 +59,9 @@ class ProductsViewModel(application: Application) : AndroidViewModel(application
             _error.value = null
             try {
                 repository.addProduct(name, category)
-                refreshGeofences(category)
+                // Include the new product immediately — _products may not have updated from Firestore yet
+                val existingNames = _products.value.filter { it.category == category.name }.map { it.name }
+                refreshGeofences(category, existingNames + name.trim())
             } catch (e: Exception) {
                 _error.value = e.message
             } finally {
@@ -69,10 +72,22 @@ class ProductsViewModel(application: Application) : AndroidViewModel(application
 
     fun deleteProduct(productId: String) {
         viewModelScope.launch {
+            val product = _products.value.find { it.id == productId }
             try {
                 repository.deleteProduct(productId)
             } catch (e: Exception) {
                 _error.value = e.message
+                return@launch
+            }
+            if (product != null) {
+                val category = runCatching { StoreCategory.valueOf(product.category) }.getOrNull()
+                if (category != null) {
+                    // Compute remaining names before Firestore listener updates _products
+                    val remaining = _products.value
+                        .filter { it.id != productId && it.category == category.name }
+                        .map { it.name }
+                    refreshGeofences(category, remaining)
+                }
             }
         }
     }
@@ -100,8 +115,6 @@ class ProductsViewModel(application: Application) : AndroidViewModel(application
                 if (_nearbyShops.value.isEmpty()) {
                     _error.value = "No shops found — check that Places API (New) is enabled and billing is active in Google Cloud Console"
                 } else {
-                    // User is here now — register geofences from this location so
-                    // they fire when the user comes back later
                     refreshAllGeofences(_products.value, location.latitude, location.longitude)
                 }
             } catch (e: Exception) {
@@ -145,31 +158,29 @@ class ProductsViewModel(application: Application) : AndroidViewModel(application
                 val names = products.filter { it.category == category.name }.map { it.name }
                 geofenceManager.refreshForCategory(category, names, resolvedLat, resolvedLng)
             }
-        } catch (_: SecurityException) {
-        } catch (_: Exception) {
+        } catch (e: SecurityException) {
+            Log.w(TAG, "No location permission for geofence refresh")
+        } catch (e: Exception) {
+            Log.e(TAG, "Geofence refresh failed", e)
         }
     }
 
     @SuppressLint("MissingPermission")
-    private suspend fun refreshGeofences(category: StoreCategory) {
+    private suspend fun refreshGeofences(category: StoreCategory, productNames: List<String>) {
         try {
             val cts = CancellationTokenSource()
             val location = fusedLocation.getCurrentLocation(
                 Priority.PRIORITY_BALANCED_POWER_ACCURACY, cts.token
             ).await() ?: return
-
-            val productsForCategory = _products.value
-                .filter { it.category == category.name }
-                .map { it.name }
-
-            geofenceManager.refreshForCategory(
-                category, productsForCategory,
-                location.latitude, location.longitude
-            )
-        } catch (_: SecurityException) {
-            // No location permission — geofences will be set up once permission is granted
-        } catch (_: Exception) {
-            // Location unavailable, silently skip
+            geofenceManager.refreshForCategory(category, productNames, location.latitude, location.longitude)
+        } catch (e: SecurityException) {
+            Log.w(TAG, "No location permission for geofence refresh")
+        } catch (e: Exception) {
+            Log.e(TAG, "Geofence refresh failed for ${category.name}", e)
         }
+    }
+
+    companion object {
+        private const val TAG = "ProductsViewModel"
     }
 }

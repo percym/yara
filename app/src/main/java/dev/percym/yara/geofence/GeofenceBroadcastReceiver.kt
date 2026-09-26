@@ -29,9 +29,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             .distinct()
 
         if (products.isNotEmpty()) {
-            // Use the category display name as the store label for the notification
-            val categoryName = triggeringGeofences.first().requestId.substringBefore("__")
-            val storeLabel = categoryName.lowercase().replaceFirstChar { it.uppercase() }
+            val storeLabel = geofenceManager.getShopNameForGeofenceId(triggeringGeofences.first().requestId)
             notificationHelper.showShoppingReminder(storeLabel, products)
         }
     }

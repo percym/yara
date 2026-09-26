@@ -58,6 +58,7 @@ class GeofenceManager(private val context: Context) {
         if (!hasFineLocationPermission()) return
 
         saveProductMapping(category, products)
+        if (products.isEmpty()) return
 
         val placesClient = Places.createClient(context)
         val request = SearchNearbyRequest.builder(
@@ -212,6 +213,22 @@ class GeofenceManager(private val context: Context) {
             }
         } catch (e: Exception) {
             emptyMap()
+        }
+    }
+
+    fun getShopNameForGeofenceId(geofenceId: String): String {
+        val categoryName = geofenceId.substringBefore("__")
+        val placeId = geofenceId.substringAfter("__")
+        val raw = shopPrefs.getString(categoryName, null)
+            ?: return categoryName.lowercase().replaceFirstChar { it.uppercase() }
+        return try {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).firstNotNullOfOrNull { i ->
+                val obj = arr.getJSONObject(i)
+                obj.optString("name").takeIf { obj.getString("id") == placeId && it.isNotEmpty() }
+            } ?: categoryName.lowercase().replaceFirstChar { it.uppercase() }
+        } catch (_: Exception) {
+            categoryName.lowercase().replaceFirstChar { it.uppercase() }
         }
     }
 

@@ -8,6 +8,7 @@ import androidx.compose.runtime.*
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.google.firebase.auth.FirebaseAuth
 import dev.percym.yara.auth.AuthManager
 import dev.percym.yara.service.ShoppingReminderService
 import dev.percym.yara.ui.auth.LoginScreen
@@ -19,7 +20,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        ShoppingReminderService.start(this)
+        if (FirebaseAuth.getInstance().currentUser != null) {
+            ShoppingReminderService.start(this)
+        }
         setContent {
             YaRATheme {
                 YaRAApp()
@@ -39,6 +42,7 @@ private fun YaRAApp() {
             LoginScreen(
                 authManager = authManager,
                 onLoginSuccess = {
+                    ShoppingReminderService.start(navController.context)
                     navController.navigate("products") {
                         popUpTo("login") { inclusive = true }
                     }
