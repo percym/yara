@@ -178,12 +178,12 @@ fun ProductsScreen(
                         modifier = Modifier
                             .size(44.dp)
                             .clip(CircleShape)
-                            .background(GoldPrimary.copy(alpha = 0.15f))
+                            .background(PurpleCard)
                     ) {
                         Icon(
                             Icons.Default.Place,
                             contentDescription = "Nearby shops",
-                            tint = GoldPrimary
+                            tint = TextSubtle
                         )
                     }
                     IconButton(

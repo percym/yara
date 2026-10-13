@@ -43,12 +43,16 @@ class ProductsViewModel(application: Application) : AndroidViewModel(application
     init {
         viewModelScope.launch {
             var firstLoad = true
-            repository.observeProducts().collect { products ->
-                _products.value = products
-                if (firstLoad && products.isNotEmpty()) {
-                    firstLoad = false
-                    refreshAllGeofences(products)
+            try {
+                repository.observeProducts().collect { products ->
+                    _products.value = products
+                    if (firstLoad && products.isNotEmpty()) {
+                        firstLoad = false
+                        refreshAllGeofences(products)
+                    }
                 }
+            } catch (e: Exception) {
+                _error.value = e.message ?: "Failed to load products"
             }
         }
     }
@@ -82,10 +86,11 @@ class ProductsViewModel(application: Application) : AndroidViewModel(application
             if (product != null) {
                 val category = runCatching { StoreCategory.valueOf(product.category) }.getOrNull()
                 if (category != null) {
-                    // Compute remaining names before Firestore listener updates _products
                     val remaining = _products.value
                         .filter { it.id != productId && it.category == category.name }
                         .map { it.name }
+                    // Update the mapping immediately so alerts stop even if location is unavailable
+                    geofenceManager.updateProductMapping(category, remaining)
                     refreshGeofences(category, remaining)
                 }
             }

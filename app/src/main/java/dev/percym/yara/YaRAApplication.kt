@@ -2,6 +2,7 @@ package dev.percym.yara
 
 import android.app.Application
 import com.google.android.libraries.places.api.Places
+import dev.percym.yara.BuildConfig
 
 class YaRAApplication : Application() {
     override fun onCreate() {

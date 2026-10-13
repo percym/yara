@@ -1,5 +1,6 @@
 package dev.percym.yara.service
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
@@ -7,6 +8,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.location.Location
 import android.os.IBinder
 import android.os.Looper
@@ -46,7 +48,13 @@ class ShoppingReminderService : Service() {
 
     @SuppressLint("MissingPermission")
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(NOTIFICATION_ID, buildNotification())
+        try {
+            startForeground(NOTIFICATION_ID, buildNotification())
+        } catch (e: SecurityException) {
+            Log.e(TAG, "Location permission not granted — cannot start foreground service", e)
+            stopSelf()
+            return START_NOT_STICKY
+        }
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         try {
             fusedLocationClient.requestLocationUpdates(
@@ -131,6 +139,12 @@ class ShoppingReminderService : Service() {
         private const val ALERT_END_HOUR = 22                   // quiet after 10pm
 
         fun start(context: Context) {
+            val hasLocation = ContextCompat.checkSelfPermission(
+                context, Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(
+                context, Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!hasLocation) return
             ContextCompat.startForegroundService(
                 context,
                 Intent(context, ShoppingReminderService::class.java)

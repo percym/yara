@@ -148,6 +148,10 @@ class GeofenceManager(private val context: Context) {
         }
     }
 
+    fun updateProductMapping(category: StoreCategory, products: List<String>) {
+        saveProductMapping(category, products)
+    }
+
     fun getProductsForGeofenceId(geofenceId: String): List<String> {
         val categoryName = geofenceId.substringBefore("__")
         return readProductMapping()[categoryName] ?: emptyList()

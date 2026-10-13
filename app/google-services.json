@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "213477960487-r5qp2mkjfad8mqd109serep6nmg8jqs4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "dev.percym.yara",
+            "certificate_hash": "7337082c17aa3460619ec1648a62f8517666c03e"
+          }
+        },
+        {
           "client_id": "213477960487-gcie8c74an65mavg69rhl9885m5hhent.apps.googleusercontent.com",
           "client_type": 3
         }
